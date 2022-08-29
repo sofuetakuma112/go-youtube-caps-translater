@@ -71,7 +71,7 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 			captions = append(captions, &Caption{
 				From: ms2likeISOFormat(start_ms),
 				To:   ms2likeISOFormat(end_ms),
-				Text: strings.Trim(text, " "),
+				Text: strings.Trim(text, " "), // ここでトリム
 			})
 		}
 	}
@@ -80,32 +80,58 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 
 	var formattedCaps Captions
 	for i, v := range captions {
-		if len(captions)-1 == i {
-			formattedCaps = append(formattedCaps, &Caption{
-				From: v.From,
-				To:   ms2likeISOFormat(videDuration_mili),
-				Text: v.Text,
-			})
-		} else {
-			formattedCaps = append(formattedCaps, &Caption{
-				From: v.From,
-				To:   captions[i+1].From,
-				Text: v.Text,
-			})
+		caption := &Caption{
+			From: v.From,
+			To:   ms2likeISOFormat(videDuration_mili),
+			Text: v.Text,
 		}
+
+		if len(captions)-1 == i {
+			caption.To = ms2likeISOFormat(videDuration_mili)
+		} else {
+			caption.To = captions[i+1].From
+		}
+
+		formattedCaps = append(formattedCaps, caption)
 	}
 
 	var originalWords []string
 	for _, fc := range formattedCaps {
 		originalWords = append(originalWords, fc.Text)
 	}
-	originalText := strings.Join(originalWords, " ")
 
+	originalText := strings.Join(originalWords, " ")
 	_ = ioutil.WriteFile(outputDirPath+"/original_captions.text", []byte(originalText), 0644)
 
-	return formattedCaps.Where(func(c *Caption) bool {
+	noMusicCaps := formattedCaps.Where(func(c *Caption) bool {
 		return c.Text != "[Music]"
 	})
+
+	var formattedWords []string
+	var removedPeriodCaps Captions
+	for _, c := range noMusicCaps {
+		idx := strings.Index(c.Text, ".")
+
+		newText := c.Text
+		if idx == len(c.Text) { // 末尾がピリオド
+			newText = c.Text[:len(c.Text)-1]
+		} else if idx > 0 && (string(c.Text[idx-1]) == " " || string(c.Text[idx+1]) == " ") { // "aa. aa" or "aa .aa"のケース
+			newText = c.Text[0:idx] + c.Text[idx+1:]
+		}
+
+		formattedWords = append(formattedWords, strings.Split(newText, " ")...)
+
+		removedPeriodCaps = append(removedPeriodCaps, &Caption{
+			From: c.From,
+			To:   c.To,
+			Text: newText,
+		})
+	}
+
+	formattedText := strings.ToLower(strings.Join(formattedWords, " "))
+	_ = ioutil.WriteFile(outputDirPath+"/"+escapedPuncTxtName, []byte(formattedText), 0644)
+
+	return removedPeriodCaps
 }
 
 type WordWithTimeStamp struct {
@@ -144,7 +170,8 @@ func createDict(captions Captions) WordDict {
 
 		for i, w := range words {
 			dict = append(dict, &WordWithTimeStamp{
-				Word:      escapeDot(w),
+				// Word:      escapeDot(w),
+				Word:      w,
 				Timestamp: from_float + float64(i)*secOfBetWords,
 			})
 		}
@@ -158,6 +185,8 @@ func createDict(captions Captions) WordDict {
 
 var outputDirPath string
 var videoId string
+var escapedPuncTxtName string
+var restoredPuncTxtName string
 
 func init() {
 	flag.Parse()
@@ -185,7 +214,7 @@ func createEscapedText(captions Captions) string {
 		}
 	}
 	escapedText := strings.Join(words, " ")
-	_ = ioutil.WriteFile(outputDirPath+"/textPuncEscaped.txt", []byte(escapedText), 0644)
+	_ = ioutil.WriteFile(outputDirPath+"/"+escapedPuncTxtName, []byte(escapedText), 0644)
 
 	return escapedText
 }
@@ -202,16 +231,24 @@ func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 	var wordsBySentence WordDict
 	var sentences Sentences
 	restoredWords := strings.Split(puncRestoredText, " ")
-	for _, rw := range restoredWords {
+	for i, rw := range restoredWords {
 		dictWord := dict[0].Word
 		timestamp := dict[0].Timestamp
 
 		if strings.Index(rw, dictWord) != -1 || strings.Index(rw, capitalizeFirstChar(dictWord)) != -1 {
 			indexOfLastChar := len(rw) - 1
+
 			hasPunc := false
 			for _, punc := range []string{".", "?"} {
-				if strings.Index(rw, punc) == indexOfLastChar {
+				if strings.Index(rw, punc) == indexOfLastChar { // 末尾文字が句読点
 					hasPunc = true
+				}
+			}
+			// 次の単語が文章の先頭に来る単語なら、現在の単語を文章の末尾単語とする
+			isLastWord := false
+			for _, firstWord := range []string{"It"} {
+				if len(restoredWords)-1 != i && firstWord == restoredWords[i+1] { // 次の単語が文章の先頭に来る単語の場合
+					isLastWord = true
 				}
 			}
 
@@ -220,7 +257,7 @@ func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 				Timestamp: timestamp,
 			})
 
-			if hasPunc { // 直前でappendしたWordWithTimeStampのWordに文末記号が含まれていた
+			if hasPunc || isLastWord { // 直前でappendしたWordWithTimeStampのWordに文末記号が含まれていた
 				// wordsBySentenceを{ from, to, sentence }の形状に変換する
 				var words []string
 				for _, w := range wordsBySentence {
@@ -231,6 +268,11 @@ func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 					To:       ms2likeISOFormat(int(wordsBySentence[len(wordsBySentence)-1].Timestamp * 1000))[3:],
 					Sentence: unescapeDot(strings.Join(words, " ")),
 				}
+
+				if isLastWord && string(sentence.Sentence[len(sentence.Sentence)-1]) != "." {
+					sentence.Sentence += "."
+				}
+
 				sentences = append(sentences, sentence)
 				wordsBySentence = nil
 			}
@@ -283,16 +325,18 @@ func createSrt(jpSentences Sentences) {
 }
 
 func main() {
+	escapedPuncTxtName = "formatted_captions.txt"
+	restoredPuncTxtName = "textPuncEscapedAndRestored.txt"
+
 	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
 	captions := formatCaptions(fetchedCaps, videoId)
 	dict := createDict(captions)
-	createEscapedText(captions)
+	// createEscapedText(captions)
 
-	// FIXME: textPuncEscapedAndRestoredがPython側でハードコーディングしている
-	puncRestoredTextFilePath := outputDirPath + "/textPuncEscapedAndRestored.txt"
+	puncRestoredTextFilePath := outputDirPath + "/" + restoredPuncTxtName
 	_, err := os.Stat(puncRestoredTextFilePath)
 	if os.IsNotExist(err) {
-		err := exec.Command("python3", "repunc.py", videoId).Run()
+		err := exec.Command("python3", "repunc_by_nemo.py", videoId, escapedPuncTxtName, restoredPuncTxtName).Run()
 		if err != nil {
 			panic(err)
 		}
