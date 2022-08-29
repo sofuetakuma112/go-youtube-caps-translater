@@ -170,7 +170,6 @@ func createDict(captions Captions) WordDict {
 
 		for i, w := range words {
 			dict = append(dict, &WordWithTimeStamp{
-				// Word:      escapeDot(w),
 				Word:      w,
 				Timestamp: from_float + float64(i)*secOfBetWords,
 			})
@@ -181,42 +180,6 @@ func createDict(captions Captions) WordDict {
 	_ = ioutil.WriteFile(outputDirPath+"/dict.json", file, 0644)
 
 	return dict
-}
-
-var outputDirPath string
-var videoId string
-var escapedPuncTxtName string
-var restoredPuncTxtName string
-
-func init() {
-	flag.Parse()
-	videoId = flag.Args()[0]
-
-	crrDir, _ := os.Getwd()
-	outputDirPath = crrDir + "/captions/" + videoId
-
-	if err := os.MkdirAll(outputDirPath, 0777); err != nil {
-		panic(err)
-	}
-}
-
-func createEscapedText(captions Captions) string {
-	var captionTexts []string
-	for _, c := range captions {
-		captionTexts = append(captionTexts, c.Text)
-	}
-
-	mayWords := strings.Split(strings.Join(captionTexts, " "), " ")
-	words := []string{}
-	for _, w := range mayWords {
-		if w != "" {
-			words = append(words, escapeDot(w))
-		}
-	}
-	escapedText := strings.Join(words, " ")
-	_ = ioutil.WriteFile(outputDirPath+"/"+escapedPuncTxtName, []byte(escapedText), 0644)
-
-	return escapedText
 }
 
 func readPuncRestoredText(filePath string) string {
@@ -269,7 +232,8 @@ func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 					Sentence: unescapeDot(strings.Join(words, " ")),
 				}
 
-				if isLastWord && string(sentence.Sentence[len(sentence.Sentence)-1]) != "." {
+				// FIXME: 句読点以外に対応する必要があるかも
+				if isLastWord && string(sentence.Sentence[len(sentence.Sentence)-1]) != "." { // 次の単語が先頭単語でかつ現在の文章の末尾に句読点が存在しない
 					sentence.Sentence += "."
 				}
 
@@ -324,16 +288,7 @@ func createSrt(jpSentences Sentences) {
 	_ = ioutil.WriteFile(outputDirPath+"/captions_ja.srt", []byte(srt), 0644)
 }
 
-func main() {
-	escapedPuncTxtName = "formatted_captions.txt"
-	restoredPuncTxtName = "textPuncEscapedAndRestored.txt"
-
-	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
-	captions := formatCaptions(fetchedCaps, videoId)
-	dict := createDict(captions)
-	// createEscapedText(captions)
-
-	puncRestoredTextFilePath := outputDirPath + "/" + restoredPuncTxtName
+func repunc(puncRestoredTextFilePath string) {
 	_, err := os.Stat(puncRestoredTextFilePath)
 	if os.IsNotExist(err) {
 		err := exec.Command("python3", "repunc_by_nemo.py", videoId, escapedPuncTxtName, restoredPuncTxtName).Run()
@@ -341,7 +296,36 @@ func main() {
 			panic(err)
 		}
 	}
+}
 
+var outputDirPath string
+var videoId string
+var escapedPuncTxtName string
+var restoredPuncTxtName string
+
+func init() {
+	flag.Parse()
+	videoId = flag.Args()[0]
+
+	crrDir, _ := os.Getwd()
+	outputDirPath = crrDir + "/captions/" + videoId
+
+	if err := os.MkdirAll(outputDirPath, 0777); err != nil {
+		panic(err)
+	}
+}
+
+func main() {
+	escapedPuncTxtName = "formatted_captions.txt"
+	restoredPuncTxtName = "textPuncEscapedAndRestored.txt"
+
+	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
+	captions := formatCaptions(fetchedCaps, videoId)
+	dict := createDict(captions)
+
+	puncRestoredTextFilePath := outputDirPath + "/" + restoredPuncTxtName
+
+	repunc(puncRestoredTextFilePath)
 	puncRestoredText := readPuncRestoredText(puncRestoredTextFilePath)
 	sentences := groupBySentence(puncRestoredText, dict)
 	jpSentences := translateSentences(sentences)
