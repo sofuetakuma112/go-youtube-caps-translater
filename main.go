@@ -190,7 +190,7 @@ func readPuncRestoredText(filePath string) string {
 	return string(readBytes)
 }
 
-func createCapsBySentence(puncRestoredText string, dict WordDict) Sentences {
+func formatCapsBySentence(puncRestoredText string, dict WordDict) Sentences {
 	var wordsBySentence WordDict
 	var sentences Sentences
 	restoredWords := strings.Split(puncRestoredText, " ")
@@ -239,6 +239,41 @@ func createCapsBySentence(puncRestoredText string, dict WordDict) Sentences {
 	return sentences
 }
 
+func translateSentences(sentences Sentences) Sentences {
+	var jpSentences Sentences
+	for _, s := range sentences {
+		translatedText := translate(s.Sentence).Text
+
+		jpSentence := Sentence{
+			Sentence: translatedText,
+			From:     s.From,
+			To:       s.To,
+		}
+
+		// if i != 0 {
+		// 	jpSentence.From = sentences[i-1].From
+		// }
+
+		jpSentences = append(jpSentences, jpSentence)
+	}
+	file, _ := json.MarshalIndent(jpSentences, "", " ")
+	_ = ioutil.WriteFile(outputDirPath+"/captions_ja_by_sentence.json", file, 0644)
+
+	return jpSentences
+}
+
+func createSrt(jpSentences Sentences) {
+	srt := ""
+	for i, js := range jpSentences {
+		jpText := js.Sentence
+		from := js.From
+		to := js.To
+
+		srt += fmt.Sprintf("%v\n%v --> %v\n%v\n\n", i+1, strings.Replace(from, ".", ",", 1), strings.Replace(to, ".", ",", 1), jpText)
+	}
+	_ = ioutil.WriteFile(outputDirPath+"/captions_ja.srt", []byte(srt), 0644)
+}
+
 func main() {
 	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
 	captions := formatCaptions(fetchedCaps, videoId)
@@ -256,5 +291,9 @@ func main() {
 
 	puncRestoredText := readPuncRestoredText(puncRestoredTextFilePath)
 
-	createCapsBySentence(puncRestoredText, dict)
+	sentences := formatCapsBySentence(puncRestoredText, dict)
+
+	jpSentences := translateSentences(sentences)
+
+	createSrt(jpSentences)
 }
