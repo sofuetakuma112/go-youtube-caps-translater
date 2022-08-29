@@ -1,6 +1,10 @@
 {
   "cSpell.words": [
+    "distilbert",
     "godotenv",
+    "nemo",
+    "omegaconf",
+    "pretrained",
     "Punc",
     "repunc"
   ]

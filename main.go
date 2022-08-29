@@ -78,16 +78,16 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 
 	videDuration_mili := int(fetchVideoLen(videoId))
 
-	var result Captions
+	var formattedCaps Captions
 	for i, v := range captions {
 		if len(captions)-1 == i {
-			result = append(result, &Caption{
+			formattedCaps = append(formattedCaps, &Caption{
 				From: v.From,
 				To:   ms2likeISOFormat(videDuration_mili),
 				Text: v.Text,
 			})
 		} else {
-			result = append(result, &Caption{
+			formattedCaps = append(formattedCaps, &Caption{
 				From: v.From,
 				To:   captions[i+1].From,
 				Text: v.Text,
@@ -95,7 +95,15 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 		}
 	}
 
-	return result.Where(func(c *Caption) bool {
+	var originalWords []string
+	for _, fc := range formattedCaps {
+		originalWords = append(originalWords, fc.Text)
+	}
+	originalText := strings.Join(originalWords, " ")
+
+	_ = ioutil.WriteFile(outputDirPath+"/original_captions.text", []byte(originalText), 0644)
+
+	return formattedCaps.Where(func(c *Caption) bool {
 		return c.Text != "[Music]"
 	})
 }
@@ -190,7 +198,7 @@ func readPuncRestoredText(filePath string) string {
 	return string(readBytes)
 }
 
-func formatCapsBySentence(puncRestoredText string, dict WordDict) Sentences {
+func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 	var wordsBySentence WordDict
 	var sentences Sentences
 	restoredWords := strings.Split(puncRestoredText, " ")
@@ -280,6 +288,7 @@ func main() {
 	dict := createDict(captions)
 	createEscapedText(captions)
 
+	// FIXME: textPuncEscapedAndRestoredがPython側でハードコーディングしている
 	puncRestoredTextFilePath := outputDirPath + "/textPuncEscapedAndRestored.txt"
 	_, err := os.Stat(puncRestoredTextFilePath)
 	if os.IsNotExist(err) {
@@ -290,10 +299,7 @@ func main() {
 	}
 
 	puncRestoredText := readPuncRestoredText(puncRestoredTextFilePath)
-
-	sentences := formatCapsBySentence(puncRestoredText, dict)
-
+	sentences := groupBySentence(puncRestoredText, dict)
 	jpSentences := translateSentences(sentences)
-
 	createSrt(jpSentences)
 }
