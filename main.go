@@ -19,6 +19,7 @@ import (
 	"github.com/joho/godotenv"
 	"golang.org/x/exp/slices"
 
+	"os/exec"
 	"regexp"
 )
 
@@ -204,7 +205,7 @@ func generateLangParams(lang, subType, subVariant string) string {
 	return url.QueryEscape(b64.StdEncoding.EncodeToString(arr))
 }
 
-func fetchTranscription(params string) string {
+func fetchTranscription(params string) ResTranscriptAPI {
 	reqBody := &ReqBody{
 		Context: ReqClient{
 			Client: Client{
@@ -241,8 +242,11 @@ func fetchTranscription(params string) string {
 	defer res.Body.Close()
 
 	body, _ := ioutil.ReadAll(res.Body)
-	body_str := string(body)
-	return string(body_str)
+
+	var fetchedCaps ResTranscriptAPI
+	json.Unmarshal(body, &fetchedCaps)
+
+	return fetchedCaps
 }
 
 type Captions []*Caption
@@ -464,8 +468,8 @@ func generateTranscriptParams(videoId, langParams string) string {
 	}
 }
 
-func likeIso2Float(time_likeIso string) float64 {
-	splitted := strings.Split(time_likeIso, ":")
+func likeIso2Float(likeIso string) float64 {
+	splitted := strings.Split(likeIso, ":")
 	days, err := strconv.ParseFloat(splitted[0], 64)
 	if err != nil {
 		panic(err)
@@ -495,6 +499,16 @@ type WordWithTimeStamp struct {
 }
 
 type WordDict []*WordWithTimeStamp
+
+type WordGroup []WordDict
+
+type Sentence struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Sentence string `json:"sentence"`
+}
+
+type Sentences []Sentence
 
 func escapeDot(word string) string {
 	return strings.Replace(word, ".", "[dot]", -1)
@@ -546,7 +560,7 @@ func init() {
 	}
 }
 
-func createEscapedText(captions Captions) {
+func createEscapedText(captions Captions) string {
 	var captionTexts []string
 	for _, c := range captions {
 		captionTexts = append(captionTexts, c.Text)
@@ -561,14 +575,92 @@ func createEscapedText(captions Captions) {
 	}
 	escapedText := strings.Join(words, " ")
 	_ = ioutil.WriteFile(outputDirPath+"/textPuncEscaped.txt", []byte(escapedText), 0644)
+
+	return escapedText
+}
+
+func readPuncRestoredText(filePath string) string {
+	readBytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+	return string(readBytes)
+}
+
+func capitalizeFirstChar(text string) string {
+	return strings.ToUpper(text[:1]) + text[1:]
+}
+
+// TODO: "~~~[dot]."への対応
+func unescapeDot(word string) string {
+	return strings.Replace(word, "[dot]", ".", -1)
+}
+
+func createCapsBySentence(puncRestoredText string, dict WordDict) Sentences {
+	var wordsBySentence WordDict
+	var sentences Sentences
+	restoredWords := strings.Split(puncRestoredText, " ")
+	for _, rw := range restoredWords {
+		dictWord := dict[0].Word
+		timestamp := dict[0].Timestamp
+
+		if strings.Index(rw, dictWord) != -1 || strings.Index(rw, capitalizeFirstChar(dictWord)) != -1 {
+			indexOfLastChar := len(rw) - 1
+			hasPunc := false
+			for _, punc := range []string{".", "?"} {
+				if strings.Index(rw, punc) == indexOfLastChar {
+					hasPunc = true
+				}
+			}
+
+			wordsBySentence = append(wordsBySentence, &WordWithTimeStamp{
+				Word:      rw,
+				Timestamp: timestamp,
+			})
+
+			if hasPunc { // 直前でappendしたWordWithTimeStampのWordに文末記号が含まれていた
+				// wordsBySentenceを{ from, to, sentence }の形状に変換する
+				var words []string
+				for _, w := range wordsBySentence {
+					words = append(words, w.Word)
+				}
+				sentence := Sentence{
+					From:     ms2likeISOFormat(int(wordsBySentence[0].Timestamp * 1000))[3:],
+					To:       ms2likeISOFormat(int(wordsBySentence[len(wordsBySentence)-1].Timestamp * 1000))[3:],
+					Sentence: unescapeDot(strings.Join(words, " ")),
+				}
+				sentences = append(sentences, sentence)
+				wordsBySentence = nil
+			}
+		} else {
+			panic(errors.New(fmt.Sprintf("rw: %v, dictWord: %v, timestamp: %v", rw, dictWord, timestamp)))
+		}
+
+		dict = dict[1:]
+	}
+
+	file, _ := json.MarshalIndent(sentences, "", " ")
+	_ = ioutil.WriteFile(outputDirPath+"/captions_en_by_sentence.json", file, 0644)
+
+	return sentences
 }
 
 func main() {
-	fetchedCaps_str := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
-	var fetchedCaps ResTranscriptAPI
-	json.Unmarshal([]byte(fetchedCaps_str), &fetchedCaps)
-
+	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
 	captions := formatCaptions(fetchedCaps, videoId)
-	createDict(captions)
+	dict := createDict(captions)
 	createEscapedText(captions)
+
+	puncRestoredTextFilePath := outputDirPath + "/textPuncEscapedAndRestored.txt"
+	_, err := os.Stat(puncRestoredTextFilePath)
+	if os.IsNotExist(err) {
+		err := exec.Command("python3", "repunc.py", videoId).Run()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	puncRestoredText := readPuncRestoredText(puncRestoredTextFilePath)
+
+	sentences := createCapsBySentence(puncRestoredText, dict)
 }
