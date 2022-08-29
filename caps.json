@@ -1,0 +1,357 @@
+[
+ {
+  "from": "00:00:00:00.240",
+  "to": "00:00:00:02.960",
+  "text": "go a statically typed compiled language"
+ },
+ {
+  "from": "00:00:00:02.960",
+  "to": "00:00:00:05.520",
+  "text": "often described as c for the 21st"
+ },
+ {
+  "from": "00:00:00:05.520",
+  "to": "00:00:00:07.520",
+  "text": "century it's a popular choice for"
+ },
+ {
+  "from": "00:00:00:07.520",
+  "to": "00:00:00:09.040",
+  "text": "high-performance server-side"
+ },
+ {
+  "from": "00:00:00:09.040",
+  "to": "00:00:00:10.880",
+  "text": "applications and is the language that"
+ },
+ {
+  "from": "00:00:00:10.880",
+  "to": "00:00:00:13.599",
+  "text": "built tools like docker cockroachdb and"
+ },
+ {
+  "from": "00:00:00:13.599",
+  "to": "00:00:00:16.560",
+  "text": "d-graph it was created at google in 2007"
+ },
+ {
+  "from": "00:00:00:16.560",
+  "to": "00:00:00:18.400",
+  "text": "by legends who really know their stuff"
+ },
+ {
+  "from": "00:00:00:18.400",
+  "to": "00:00:00:20.880",
+  "text": "like ken thompson the inventor of the b"
+ },
+ {
+  "from": "00:00:00:20.880",
+  "to": "00:00:00:23.439",
+  "text": "and c programming languages version 1.0"
+ },
+ {
+  "from": "00:00:00:23.439",
+  "to": "00:00:00:25.599",
+  "text": "was released as open source software in"
+ },
+ {
+  "from": "00:00:00:25.599",
+  "to": "00:00:00:28.240",
+  "text": "2012. it was designed for simplicity and"
+ },
+ {
+  "from": "00:00:00:28.240",
+  "to": "00:00:00:30.240",
+  "text": "efficiency and that's why we call it go"
+ },
+ {
+  "from": "00:00:00:30.240",
+  "to": "00:00:00:32.320",
+  "text": "and not go lang the source code is"
+ },
+ {
+  "from": "00:00:00:32.320",
+  "to": "00:00:00:33.920",
+  "text": "compiled down to machine code which"
+ },
+ {
+  "from": "00:00:00:33.920",
+  "to": "00:00:00:35.280",
+  "text": "means it generally outperforms"
+ },
+ {
+  "from": "00:00:00:35.280",
+  "to": "00:00:00:37.200",
+  "text": "interpreted languages but it's famous"
+ },
+ {
+  "from": "00:00:00:37.200",
+  "to": "00:00:00:39.200",
+  "text": "for its extremely fast compile times"
+ },
+ {
+  "from": "00:00:00:39.200",
+  "to": "00:00:00:40.960",
+  "text": "made possible by innovations to"
+ },
+ {
+  "from": "00:00:00:40.960",
+  "to": "00:00:00:43.040",
+  "text": "dependency analysis and even though it's"
+ },
+ {
+  "from": "00:00:00:43.040",
+  "to": "00:00:00:45.120",
+  "text": "a statically typed language it performs"
+ },
+ {
+  "from": "00:00:00:45.120",
+  "to": "00:00:00:47.360",
+  "text": "type inference to deliver a syntax that"
+ },
+ {
+  "from": "00:00:00:47.360",
+  "to": "00:00:00:49.440",
+  "text": "is very concise and practical it also"
+ },
+ {
+  "from": "00:00:00:49.440",
+  "to": "00:00:00:51.760",
+  "text": "has a package and module system making"
+ },
+ {
+  "from": "00:00:00:51.760",
+  "to": "00:00:00:54.000",
+  "text": "it easy to import and export code"
+ },
+ {
+  "from": "00:00:00:54.000",
+  "to": "00:00:00:56.399",
+  "text": "between projects to get started install"
+ },
+ {
+  "from": "00:00:00:56.399",
+  "to": "00:00:00:58.399",
+  "text": "go and then open an empty directory on"
+ },
+ {
+  "from": "00:00:00:58.399",
+  "to": "00:00:01:01.039",
+  "text": "your system create a file ending in go"
+ },
+ {
+  "from": "00:00:01:01.039",
+  "to": "00:00:01:03.440",
+  "text": "then add package main at the top to"
+ },
+ {
+  "from": "00:00:01:03.440",
+  "to": "00:00:01:05.760",
+  "text": "create a standalone executable then"
+ },
+ {
+  "from": "00:00:01:05.760",
+  "to": "00:00:01:07.680",
+  "text": "declare a main function which is where"
+ },
+ {
+  "from": "00:00:01:07.680",
+  "to": "00:00:01:10.080",
+  "text": "your program will start executing go has"
+ },
+ {
+  "from": "00:00:01:10.080",
+  "to": "00:00:01:12.400",
+  "text": "a standard library of core packages to"
+ },
+ {
+  "from": "00:00:01:12.400",
+  "to": "00:00:01:14.479",
+  "text": "handle common requirements like math"
+ },
+ {
+  "from": "00:00:01:14.479",
+  "to": "00:00:01:17.439",
+  "text": "networking or formatted io by importing"
+ },
+ {
+  "from": "00:00:01:17.439",
+  "to": "00:00:01:19.920",
+  "text": "fmt we can print a line to the standard"
+ },
+ {
+  "from": "00:00:01:19.920",
+  "to": "00:00:01:22.240",
+  "text": "output then run the go build command and"
+ },
+ {
+  "from": "00:00:01:22.240",
+  "to": "00:00:01:23.920",
+  "text": "it quickly compiles the source code and"
+ },
+ {
+  "from": "00:00:01:23.920",
+  "to": "00:00:01:26.320",
+  "text": "dependencies into an executable binary"
+ },
+ {
+  "from": "00:00:01:26.320",
+  "to": "00:00:01:28.000",
+  "text": "when it comes to dependencies we can"
+ },
+ {
+  "from": "00:00:01:28.000",
+  "to": "00:00:01:30.079",
+  "text": "also link to remote packages on github"
+ },
+ {
+  "from": "00:00:01:30.079",
+  "to": "00:00:01:32.159",
+  "text": "run go mod init from the command line"
+ },
+ {
+  "from": "00:00:01:32.159",
+  "to": "00:00:01:34.079",
+  "text": "and that creates a go module file that"
+ },
+ {
+  "from": "00:00:01:34.079",
+  "to": "00:00:01:35.680",
+  "text": "enables dependency tracking"
+ },
+ {
+  "from": "00:00:01:35.680",
+  "to": "00:00:01:37.680",
+  "text": "syntactically go is like a concise"
+ },
+ {
+  "from": "00:00:01:37.680",
+  "to": "00:00:01:40.320",
+  "text": "version of c or c plus plus declare a"
+ },
+ {
+  "from": "00:00:01:40.320",
+  "to": "00:00:01:42.079",
+  "text": "variable with the var keyword followed"
+ },
+ {
+  "from": "00:00:01:42.079",
+  "to": "00:00:01:44.399",
+  "text": "by its name and type and initialize it"
+ },
+ {
+  "from": "00:00:01:44.399",
+  "to": "00:00:01:46.320",
+  "text": "with a value or you might use the short"
+ },
+ {
+  "from": "00:00:01:46.320",
+  "to": "00:00:01:48.720",
+  "text": "assignment syntax to replace var and let"
+ },
+ {
+  "from": "00:00:01:48.720",
+  "to": "00:00:01:50.880",
+  "text": "go automatically infer the type and you"
+ },
+ {
+  "from": "00:00:01:50.880",
+  "to": "00:00:01:52.640",
+  "text": "can define multiple variables from a"
+ },
+ {
+  "from": "00:00:01:52.640",
+  "to": "00:00:01:54.320",
+  "text": "single line go has all the other"
+ },
+ {
+  "from": "00:00:01:54.320",
+  "to": "00:00:01:55.360",
+  "text": "features you would expect in a"
+ },
+ {
+  "from": "00:00:01:55.360",
+  "to": "00:00:01:57.360",
+  "text": "programming language like arrays maps"
+ },
+ {
+  "from": "00:00:01:57.360",
+  "to": "00:00:01:59.439",
+  "text": "loops and control flow but also allows"
+ },
+ {
+  "from": "00:00:01:59.439",
+  "to": "00:00:02:01.040",
+  "text": "you to store the memory address of a"
+ },
+ {
+  "from": "00:00:02:01.040",
+  "to": "00:00:02:03.280",
+  "text": "value using pointers while disallowing"
+ },
+ {
+  "from": "00:00:02:03.280",
+  "to": "00:00:02:05.360",
+  "text": "pointer arithmetic which often leads to"
+ },
+ {
+  "from": "00:00:02:05.360",
+  "to": "00:00:02:07.600",
+  "text": "dangerous and unpredictable behavior in"
+ },
+ {
+  "from": "00:00:02:07.600",
+  "to": "00:00:02:09.920",
+  "text": "addition it supports concurrency with go"
+ },
+ {
+  "from": "00:00:02:09.920",
+  "to": "00:00:02:11.520",
+  "text": "routines which are functions that can"
+ },
+ {
+  "from": "00:00:02:11.520",
+  "to": "00:00:02:13.680",
+  "text": "run at the same time as other functions"
+ },
+ {
+  "from": "00:00:02:13.680",
+  "to": "00:00:02:16.319",
+  "text": "by utilizing multiple threads on a cpu"
+ },
+ {
+  "from": "00:00:02:16.319",
+  "to": "00:00:02:18.720",
+  "text": "this has been go in 100 seconds hit the"
+ },
+ {
+  "from": "00:00:02:18.720",
+  "to": "00:00:02:19.920",
+  "text": "like button if you want to see more"
+ },
+ {
+  "from": "00:00:02:19.920",
+  "to": "00:00:02:21.520",
+  "text": "short videos like this and check out the"
+ },
+ {
+  "from": "00:00:02:21.520",
+  "to": "00:00:02:23.440",
+  "text": "full article to write your first 100"
+ },
+ {
+  "from": "00:00:02:23.440",
+  "to": "00:00:02:25.520",
+  "text": "lines of go on fireship io thanks for"
+ },
+ {
+  "from": "00:00:02:25.520",
+  "to": "00:00:02:27.520",
+  "text": "watching and i will see you in the next"
+ },
+ {
+  "from": "00:00:02:27.520",
+  "to": "00:00:02:30.000",
+  "text": "one"
+ }
+]

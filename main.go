@@ -159,9 +159,9 @@ type ResTranscriptAPI struct {
 }
 
 type Caption struct {
-	From string
-	To   string
-	Text string
+	From string `json:"from"`
+	To   string `json:"to"`
+	Text string `json:"text"`
 }
 
 type VideoListResponse struct {
@@ -256,7 +256,7 @@ func (captions Captions) Where(fn func(*Caption) bool) (result Captions) {
 	return result
 }
 
-func videoTranscriptionToJson(transcript ResTranscriptAPI, videoId string) Captions {
+func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 	actions := transcript.Actions
 
 	idx := slices.IndexFunc(actions, func(action Action) bool {
@@ -464,25 +464,111 @@ func generateTranscriptParams(videoId, langParams string) string {
 	}
 }
 
-func main() {
-	flag.Parse()
-	videoId := flag.Args()[0]
-
-	crrDir, _ := os.Getwd()
-
-	if err := os.MkdirAll(crrDir+"/captions/"+videoId, 0777); err != nil {
+func likeIso2Float(time_likeIso string) float64 {
+	splitted := strings.Split(time_likeIso, ":")
+	days, err := strconv.ParseFloat(splitted[0], 64)
+	if err != nil {
 		panic(err)
 	}
 
-	unParsedCaps_str := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
-
-	var unParsedCaps ResTranscriptAPI
-	json.Unmarshal([]byte(unParsedCaps_str), &unParsedCaps)
-
-	var caps []Caption
-	for _, pt := range videoTranscriptionToJson(unParsedCaps, videoId) {
-		caps = append(caps, *pt)
+	hours, err := strconv.ParseFloat(splitted[1], 64)
+	if err != nil {
+		panic(err)
 	}
 
-	fmt.Println(caps)
+	minutes, err := strconv.ParseFloat(splitted[2], 64)
+	if err != nil {
+		panic(err)
+	}
+
+	seconds, err := strconv.ParseFloat(splitted[3], 64)
+	if err != nil {
+		panic(err)
+	}
+
+	return days*24*60*60 + hours*60*60 + minutes*60 + seconds
+}
+
+type WordWithTimeStamp struct {
+	Word      string  `json:"word"`
+	Timestamp float64 `json:"timestamp"`
+}
+
+type WordDict []*WordWithTimeStamp
+
+func escapeDot(word string) string {
+	return strings.Replace(word, ".", "[dot]", -1)
+}
+
+func createDict(captions Captions) WordDict {
+	var dict WordDict
+
+	for _, c := range captions {
+		words := strings.Split(c.Text, " ")
+		countOfWords := len(words)
+
+		from_float := likeIso2Float(c.From)
+		to_float := likeIso2Float(c.To)
+
+		lenOfTalk := to_float - from_float
+
+		var secOfBetWords float64 = 0
+		if countOfWords != 1 {
+			secOfBetWords = lenOfTalk / float64(countOfWords-1)
+		}
+
+		for i, w := range words {
+			dict = append(dict, &WordWithTimeStamp{
+				Word:      escapeDot(w),
+				Timestamp: from_float + float64(i)*secOfBetWords,
+			})
+		}
+	}
+
+	file, _ := json.MarshalIndent(dict, "", " ")
+	_ = ioutil.WriteFile(outputDirPath+"/dict.json", file, 0644)
+
+	return dict
+}
+
+var outputDirPath string
+var videoId string
+
+func init() {
+	flag.Parse()
+	videoId = flag.Args()[0]
+
+	crrDir, _ := os.Getwd()
+	outputDirPath = crrDir + "/captions/" + videoId
+
+	if err := os.MkdirAll(outputDirPath, 0777); err != nil {
+		panic(err)
+	}
+}
+
+func createEscapedText(captions Captions) {
+	var captionTexts []string
+	for _, c := range captions {
+		captionTexts = append(captionTexts, c.Text)
+	}
+
+	mayWords := strings.Split(strings.Join(captionTexts, " "), " ")
+	words := []string{}
+	for _, w := range mayWords {
+		if w != "" {
+			words = append(words, escapeDot(w))
+		}
+	}
+	escapedText := strings.Join(words, " ")
+	_ = ioutil.WriteFile(outputDirPath+"/textPuncEscaped.txt", []byte(escapedText), 0644)
+}
+
+func main() {
+	fetchedCaps_str := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
+	var fetchedCaps ResTranscriptAPI
+	json.Unmarshal([]byte(fetchedCaps_str), &fetchedCaps)
+
+	captions := formatCaptions(fetchedCaps, videoId)
+	createDict(captions)
+	createEscapedText(captions)
 }
