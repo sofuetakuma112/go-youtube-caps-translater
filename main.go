@@ -9,9 +9,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/exp/slices"
 
+	"github.com/cheggaaa/pb/v3"
 	"os/exec"
 )
 
@@ -34,6 +36,19 @@ func (captions Captions) Where(fn func(*Caption) bool) (result Captions) {
 
 // 内部APIから取得した字幕データを整形する
 func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
+	var captions Captions
+
+	path := outputDirPath + "/" + escapedPuncTxtName
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		json.Unmarshal(readBytes, &captions)
+		return captions
+	}
+
 	actions := transcript.Actions
 
 	idx := slices.IndexFunc(actions, func(action Action) bool {
@@ -44,8 +59,6 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 	}
 
 	cueGroups := transcript.Actions[idx].UpdateEngagementPanelAction.Content.TranscriptRenderer.Body.TranscriptBodyRenderer.CueGroups
-
-	var captions Captions
 
 	for _, cueGroup := range cueGroups {
 		for _, cue := range cueGroup.TranscriptCueGroupRenderer.Cues {
@@ -65,7 +78,8 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 
 			text := cueRenderer.Cue.SimpleText
 			if text == "" {
-				panic(errors.New("no simpleText id"))
+				fmt.Printf("no simpleText id, cueRenderer: %v, last caption: %v\n", cueRenderer, *captions[len(captions)-1])
+				continue
 			}
 
 			captions = append(captions, &Caption{
@@ -113,7 +127,7 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 		idx := strings.Index(c.Text, ".")
 
 		newText := c.Text
-		if idx == len(c.Text) { // 末尾がピリオド
+		if idx == len(c.Text)-1 { // 末尾がピリオド
 			newText = c.Text[:len(c.Text)-1]
 		} else if idx > 0 && (string(c.Text[idx-1]) == " " || string(c.Text[idx+1]) == " ") { // "aa. aa" or "aa .aa"のケース
 			newText = c.Text[0:idx] + c.Text[idx+1:]
@@ -153,6 +167,17 @@ type Sentences []Sentence
 
 func createDict(captions Captions) WordDict {
 	var dict WordDict
+	path := outputDirPath + "/dict.json"
+
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		json.Unmarshal(readBytes, &dict)
+		return dict
+	}
 
 	for _, c := range captions {
 		words := strings.Split(c.Text, " ")
@@ -177,28 +202,33 @@ func createDict(captions Captions) WordDict {
 	}
 
 	file, _ := json.MarshalIndent(dict, "", " ")
-	_ = ioutil.WriteFile(outputDirPath+"/dict.json", file, 0644)
+	_ = ioutil.WriteFile(path, file, 0644)
 
 	return dict
-}
-
-func readPuncRestoredText(filePath string) string {
-	readBytes, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		panic(err)
-	}
-	return string(readBytes)
 }
 
 func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 	var wordsBySentence WordDict
 	var sentences Sentences
+
+	path := outputDirPath + "/captions_en_by_sentence.json"
+
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		json.Unmarshal(readBytes, &sentences)
+		return sentences
+	}
+
 	restoredWords := strings.Split(puncRestoredText, " ")
 	for i, rw := range restoredWords {
 		dictWord := dict[0].Word
 		timestamp := dict[0].Timestamp
 
-		if strings.Index(rw, dictWord) != -1 || strings.Index(rw, capitalizeFirstChar(dictWord)) != -1 {
+		if strings.Index(strings.ToLower(rw), strings.ToLower(dictWord)) != -1 {
 			indexOfLastChar := len(rw) - 1
 
 			hasPunc := false
@@ -241,43 +271,74 @@ func groupBySentence(puncRestoredText string, dict WordDict) Sentences {
 				wordsBySentence = nil
 			}
 		} else {
-			panic(errors.New(fmt.Sprintf("rw: %v, dictWord: %v, timestamp: %v", rw, dictWord, timestamp)))
+			panic(errors.New(fmt.Sprintf("strings.ToLower(rw): %v, strings.ToLower(dictWord): %v, timestamp: %v", strings.ToLower(rw), strings.ToLower(dictWord), timestamp)))
 		}
 
 		dict = dict[1:]
 	}
 
 	file, _ := json.MarshalIndent(sentences, "", " ")
-	_ = ioutil.WriteFile(outputDirPath+"/captions_en_by_sentence.json", file, 0644)
+	_ = ioutil.WriteFile(path, file, 0644)
 
 	return sentences
 }
 
 func translateSentences(sentences Sentences) Sentences {
 	var jpSentences Sentences
-	for _, s := range sentences {
-		translatedText := translate(s.Sentence).Text
 
-		jpSentence := Sentence{
-			Sentence: translatedText,
-			From:     s.From,
-			To:       s.To,
+	path := outputDirPath + "/captions_ja_by_sentence.json"
+
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
 		}
 
-		// if i != 0 {
-		// 	jpSentence.From = sentences[i-1].From
-		// }
-
-		jpSentences = append(jpSentences, jpSentence)
+		json.Unmarshal(readBytes, &jpSentences)
+		return jpSentences
 	}
+
+	bar := pb.Simple.Start(len(sentences))
+	bar.SetMaxWidth(80)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	jpSentences = make(Sentences, len(sentences))
+	for i, s := range sentences {
+		wg.Add(1)
+		go func(i int, s Sentence) {
+			defer func() {
+				bar.Increment()
+				wg.Done()
+			}()
+			translatedText := translate(s.Sentence).Text
+			jpSentence := Sentence{
+				Sentence: translatedText,
+				From:     s.From,
+				To:       s.To,
+			}
+			mu.Lock()
+			jpSentences[i] = jpSentence
+			mu.Unlock()
+		}(i, s)
+	}
+	wg.Wait()
+	bar.Finish()
+
 	file, _ := json.MarshalIndent(jpSentences, "", " ")
-	_ = ioutil.WriteFile(outputDirPath+"/captions_ja_by_sentence.json", file, 0644)
+	_ = ioutil.WriteFile(path, file, 0644)
 
 	return jpSentences
 }
 
 func createSrt(jpSentences Sentences) {
 	srt := ""
+
+	path := outputDirPath + "/captions_ja.srt"
+	if checkFileExist(path) {
+		return
+	}
+
 	for i, js := range jpSentences {
 		jpText := js.Sentence
 		from := js.From
@@ -285,23 +346,39 @@ func createSrt(jpSentences Sentences) {
 
 		srt += fmt.Sprintf("%v\n%v --> %v\n%v\n\n", i+1, strings.Replace(from, ".", ",", 1), strings.Replace(to, ".", ",", 1), jpText)
 	}
-	_ = ioutil.WriteFile(outputDirPath+"/captions_ja.srt", []byte(srt), 0644)
+	_ = ioutil.WriteFile(path, []byte(srt), 0644)
 }
 
-func repunc(puncRestoredTextFilePath string) {
-	_, err := os.Stat(puncRestoredTextFilePath)
+func checkFileExist(filePath string) bool {
+	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+func repunc() string {
+	if !checkFileExist(puncRestoredTextFilePath) {
 		err := exec.Command("python3", "repunc_by_nemo.py", videoId, escapedPuncTxtName, restoredPuncTxtName).Run()
 		if err != nil {
 			panic(err)
 		}
 	}
+
+	readBytes, err := ioutil.ReadFile(puncRestoredTextFilePath)
+	if err != nil {
+		panic(err)
+	}
+	return string(readBytes)
 }
 
 var outputDirPath string
 var videoId string
+
 var escapedPuncTxtName string
 var restoredPuncTxtName string
+
+var puncRestoredTextFilePath string
 
 func init() {
 	flag.Parse()
@@ -313,21 +390,31 @@ func init() {
 	if err := os.MkdirAll(outputDirPath, 0777); err != nil {
 		panic(err)
 	}
+
+	escapedPuncTxtName = "formatted_captions.txt"
+	restoredPuncTxtName = "textPuncEscapedAndRestored.txt"
+	puncRestoredTextFilePath = outputDirPath + "/" + restoredPuncTxtName
 }
 
 func main() {
-	escapedPuncTxtName = "formatted_captions.txt"
-	restoredPuncTxtName = "textPuncEscapedAndRestored.txt"
-
+	fmt.Println("Step: 1/7")
 	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
+
+	fmt.Println("Step: 2/7")
 	captions := formatCaptions(fetchedCaps, videoId)
+
+	fmt.Println("Step: 3/7")
 	dict := createDict(captions)
 
-	puncRestoredTextFilePath := outputDirPath + "/" + restoredPuncTxtName
+	fmt.Println("Step: 4/7")
+	puncRestoredText := repunc()
 
-	repunc(puncRestoredTextFilePath)
-	puncRestoredText := readPuncRestoredText(puncRestoredTextFilePath)
+	fmt.Println("Step: 5/7")
 	sentences := groupBySentence(puncRestoredText, dict)
+
+	fmt.Println("Step: 6/7")
 	jpSentences := translateSentences(sentences)
+
+	fmt.Println("Step: 7/7")
 	createSrt(jpSentences)
 }

@@ -22,6 +22,19 @@ func generateLangParams(lang, subType, subVariant string) string {
 }
 
 func fetchTranscription(params string) ResTranscriptAPI {
+	var fetchedCaps ResTranscriptAPI
+	path := outputDirPath + "/fetchedCaptions.json"
+
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		json.Unmarshal(readBytes, &fetchedCaps)
+		return fetchedCaps
+	}
+
 	reqBody := &ReqBody{
 		Context: ReqClient{
 			Client: Client{
@@ -59,8 +72,10 @@ func fetchTranscription(params string) ResTranscriptAPI {
 
 	body, _ := ioutil.ReadAll(res.Body)
 
-	var fetchedCaps ResTranscriptAPI
 	json.Unmarshal(body, &fetchedCaps)
+
+	file, _ := json.MarshalIndent(fetchedCaps, "", " ")
+	_ = ioutil.WriteFile(path, file, 0644)
 
 	return fetchedCaps
 }
