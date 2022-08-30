@@ -25,28 +25,35 @@ type Caption struct {
 
 type Captions []*Caption
 
-func (captions Captions) Where(fn func(*Caption) bool) (result Captions) {
-	for _, c := range captions {
-		if fn(c) {
-			result = append(result, c)
-		}
-	}
-	return result
+type WordWithTimeStamp struct {
+	Word      string  `json:"word"`
+	Timestamp float64 `json:"timestamp"`
 }
 
-// 内部APIから取得した字幕データを整形する
-func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
-	var captions Captions
+type WordDict []*WordWithTimeStamp
 
-	path := outputDirPath + "/" + escapedPuncTxtName
+type WordGroup []WordDict
+
+type Sentence struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Sentence string `json:"sentence"`
+}
+
+type Sentences []Sentence
+
+// 内部APIから取得したデータから字幕情報を抽出する
+func extractCaptions(transcript ResTranscriptAPI) Captions {
+	var rawCaptions Captions
+	path := outputDirPath+"/rawCaptions.json"
 	if checkFileExist(path) {
 		readBytes, err := ioutil.ReadFile(path)
 		if err != nil {
 			panic(err)
 		}
 
-		json.Unmarshal(readBytes, &captions)
-		return captions
+		json.Unmarshal(readBytes, &rawCaptions)
+		return rawCaptions
 	}
 
 	actions := transcript.Actions
@@ -78,11 +85,11 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 
 			text := cueRenderer.Cue.SimpleText
 			if text == "" {
-				fmt.Printf("no simpleText id, cueRenderer: %v, last caption: %v\n", cueRenderer, *captions[len(captions)-1])
+				fmt.Printf("no simpleText id, cueRenderer: %v, last caption: %v\n", cueRenderer, *rawCaptions[len(rawCaptions)-1])
 				continue
 			}
 
-			captions = append(captions, &Caption{
+			rawCaptions = append(rawCaptions, &Caption{
 				From: ms2likeISOFormat(start_ms),
 				To:   ms2likeISOFormat(end_ms),
 				Text: strings.Trim(text, " "), // ここでトリム
@@ -90,42 +97,38 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 		}
 	}
 
-	videDuration_mili := int(fetchVideoLen(videoId))
+	file, _ := json.MarshalIndent(rawCaptions, "", " ")
+	_ = ioutil.WriteFile(path, file, 0644)
 
+	return rawCaptions
+}
+
+// 抽出した字幕データを整形する
+func formatCaptions(rawCaptions Captions, videoId string) Captions {
 	var formattedCaps Captions
-	for i, v := range captions {
-		caption := &Caption{
-			From: v.From,
-			To:   ms2likeISOFormat(videDuration_mili),
-			Text: v.Text,
+
+	path := outputDirPath+"/formattedCaptions.json"
+	if checkFileExist(path) {
+		readBytes, err := ioutil.ReadFile(path)
+		if err != nil {
+			panic(err)
 		}
 
-		if len(captions)-1 == i {
-			caption.To = ms2likeISOFormat(videDuration_mili)
-		} else {
-			caption.To = captions[i+1].From
-		}
-
-		formattedCaps = append(formattedCaps, caption)
+		json.Unmarshal(readBytes, &formattedCaps)
+		return formattedCaps
 	}
 
-	var originalWords []string
-	for _, fc := range formattedCaps {
-		originalWords = append(originalWords, fc.Text)
-	}
-
-	originalText := strings.Join(originalWords, " ")
-	_ = ioutil.WriteFile(outputDirPath+"/original_captions.text", []byte(originalText), 0644)
-
-	noMusicCaps := formattedCaps.Where(func(c *Caption) bool {
-		return c.Text != "[Music]"
-	})
+	videoDuration_mili := int(fetchVideoLen(videoId))
 
 	var formattedWords []string
-	var removedPeriodCaps Captions
-	for _, c := range noMusicCaps {
-		idx := strings.Index(c.Text, ".")
+	for i, c := range rawCaptions {
+		// フィルタリング
+		if c.Text == "[Music]" {
+			continue
+		}
 
+		// 字幕テキストの処理
+		idx := strings.Index(c.Text, ".")
 		newText := c.Text
 		if idx == len(c.Text)-1 { // 末尾がピリオド
 			newText = c.Text[:len(c.Text)-1]
@@ -133,37 +136,30 @@ func formatCaptions(transcript ResTranscriptAPI, videoId string) Captions {
 			newText = c.Text[0:idx] + c.Text[idx+1:]
 		}
 
-		formattedWords = append(formattedWords, strings.Split(newText, " ")...)
-
-		removedPeriodCaps = append(removedPeriodCaps, &Caption{
+		caption := &Caption{
 			From: c.From,
-			To:   c.To,
+			To:   ms2likeISOFormat(videoDuration_mili),
 			Text: newText,
-		})
+		}
+
+		if len(rawCaptions)-1 == i {
+			caption.To = ms2likeISOFormat(videoDuration_mili)
+		} else {
+			caption.To = rawCaptions[i+1].From
+		}
+
+		formattedWords = append(formattedWords, strings.Split(newText, " ")...)
+		formattedCaps = append(formattedCaps, caption)
 	}
 
 	formattedText := strings.ToLower(strings.Join(formattedWords, " "))
 	_ = ioutil.WriteFile(outputDirPath+"/"+escapedPuncTxtName, []byte(formattedText), 0644)
 
-	return removedPeriodCaps
+	file, _ := json.MarshalIndent(formattedCaps, "", " ")
+	_ = ioutil.WriteFile(path, file, 0644)
+
+	return formattedCaps
 }
-
-type WordWithTimeStamp struct {
-	Word      string  `json:"word"`
-	Timestamp float64 `json:"timestamp"`
-}
-
-type WordDict []*WordWithTimeStamp
-
-type WordGroup []WordDict
-
-type Sentence struct {
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Sentence string `json:"sentence"`
-}
-
-type Sentences []Sentence
 
 func createDict(captions Captions) WordDict {
 	var dict WordDict
@@ -352,14 +348,6 @@ func createSrt(jpSentences Sentences) {
 	_ = ioutil.WriteFile(path, []byte(srt), 0644)
 }
 
-func checkFileExist(filePath string) bool {
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 func repunc() string {
 	if !checkFileExist(puncRestoredTextFilePath) {
 		err := exec.Command("python3", "repunc_by_nemo.py", videoId, escapedPuncTxtName, restoredPuncTxtName).Run()
@@ -400,24 +388,29 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Step: 1/7")
-	fetchedCaps := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
+	fmt.Println("Step: 1/8")
+	fetchedTranscript := fetchTranscription(generateTranscriptParams(videoId, generateLangParams("en", "asr", "")))
 
-	fmt.Println("Step: 2/7")
-	captions := formatCaptions(fetchedCaps, videoId)
+	fmt.Println("Step: 2/8")
+	rawCaptions := extractCaptions(fetchedTranscript)
 
-	fmt.Println("Step: 3/7")
+	fmt.Println("Step: 3/8")
+	captions := formatCaptions(rawCaptions, videoId)
+
+	fmt.Println("Step: 4/8")
 	dict := createDict(captions)
 
-	fmt.Println("Step: 4/7")
+	fmt.Println("Step: 5/8")
 	puncRestoredText := repunc()
 
-	fmt.Println("Step: 5/7")
+	fmt.Println("Step: 6/8")
 	sentences := groupBySentence(puncRestoredText, dict)
 
-	fmt.Println("Step: 6/7")
+	os.Exit(1)
+
+	fmt.Println("Step: 7/8")
 	jpSentences := translateSentences(sentences)
 
-	fmt.Println("Step: 7/7")
+	fmt.Println("Step: 8/8")
 	createSrt(jpSentences)
 }
