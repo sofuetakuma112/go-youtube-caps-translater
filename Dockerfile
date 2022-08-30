@@ -9,7 +9,7 @@ RUN apt-get install -y python3 python3-pip
 RUN pip3 install torch torchvision
 RUN apt-get update && apt-get install -y libsndfile1 ffmpeg
 RUN pip3 install Cython
-RUN pip3 install nemo_toolkit['all']
+RUN pip3 install nemo_toolkit['nlp']
 
 WORKDIR /work
 

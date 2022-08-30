@@ -406,8 +406,6 @@ func main() {
 	fmt.Println("Step: 6/8")
 	sentences := groupBySentence(puncRestoredText, dict)
 
-	os.Exit(1)
-
 	fmt.Println("Step: 7/8")
 	jpSentences := translateSentences(sentences)
 
