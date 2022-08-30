@@ -304,10 +304,13 @@ func translateSentences(sentences Sentences) Sentences {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	jpSentences = make(Sentences, len(sentences))
+	semaphore := make(chan struct{}, 10)
 	for i, s := range sentences {
+		semaphore <- struct{}{}
 		wg.Add(1)
 		go func(i int, s Sentence) {
 			defer func() {
+				<-semaphore
 				bar.Increment()
 				wg.Done()
 			}()
