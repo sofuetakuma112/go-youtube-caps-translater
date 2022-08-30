@@ -15,7 +15,7 @@ type ResGoogleTranslate struct {
 }
 
 func translate(text string) ResGoogleTranslate {
-	url := fmt.Sprintf("https://script.google.com/macros/s/AKfycbwHvOCeufro86JCbI8pZh_XdDXahWLv8tvmqhC_jfYkEXMtm00N6o-pzU5D0bTvGZLfDA/exec?text=%v&source=en&target=ja", url.QueryEscape(text))
+	url := fmt.Sprintf("https://script.google.com/macros/s/AKfycbxtSi5OqIjdgzOlavPjYyrUASKGkWFPc4MK_85OKEmC9rGBlOTEmlkmN_WBpcJ00UdcVg/exec?text=%v&source=en&target=ja", url.QueryEscape(text))
 
 	var res ResGoogleTranslate
 
