@@ -15,30 +15,28 @@ type ResGoogleTranslate struct {
 }
 
 func translate(text string) ResGoogleTranslate {
-	url := fmt.Sprintf("https://script.google.com/macros/s/AKfycbxtSi5OqIjdgzOlavPjYyrUASKGkWFPc4MK_85OKEmC9rGBlOTEmlkmN_WBpcJ00UdcVg/exec?text=%v&source=en&target=ja", url.QueryEscape(text))
-
 	var res ResGoogleTranslate
 
-	for i := 0; i < 5; i++ {
-		resp, err := http.Get(url)
-		if err != nil {
-			panic(err)
-		}
+	urls := [4]string{"https://script.google.com/macros/s/AKfycbwU3rp-wP0wC0rHy1uajb61bKCQGDB4TJ8HofbtU_KCB3hmjKol0-_I8ABXr9Pr_aIAOg/exec?text=%v&source=en&target=ja", "https://script.google.com/macros/s/AKfycbxXtSoPH_UDtGD-bZpWt6Gx2m3s0GyKTjO1LHCteVvMJNje5PDytKmzzTR7vRMb0Nmm/exec?text=%v&source=en&target=ja", "https://script.google.com/macros/s/AKfycbyQAvp99EoatfQYZ3pBQDpLr4TWazEUzyNFAiNUT3osWD388S27hHaPx0sjuNe7nZON0A/exec?text=%v&source=en&target=ja", "https://script.google.com/macros/s/AKfycbwPd2RT9cOHksOSodK9R-ERoqGWgwBntLFOKhZtMEk5AcAlI6J0uCOlJ2gCcxQ9MhpKrA/exec?text=%v&source=en&target=ja"}
+	for _, urlFormatStr := range urls {
+		url := fmt.Sprintf(urlFormatStr, url.QueryEscape(text))
 
-		defer resp.Body.Close()
+		for i := 0; i < 10; i++ {
+			resp, err := http.Get(url)
+			if err != nil {
+				panic(err)
+			}
 
-		byteArray, _ := ioutil.ReadAll(resp.Body)
+			defer resp.Body.Close()
 
-		json.Unmarshal(byteArray, &res)
+			byteArray, _ := ioutil.ReadAll(resp.Body)
 
-		if res.Code == 200 {
-			break
+			json.Unmarshal(byteArray, &res)
+
+			if res.Code == 200 {
+				return res
+			}
 		}
 	}
-
-	if res.Code != 200 {
-		panic(errors.New("翻訳に失敗"))
-	}
-
-	return res
+	panic(errors.New("翻訳に失敗"))
 }
