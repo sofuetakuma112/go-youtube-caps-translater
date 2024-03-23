@@ -45,7 +45,7 @@ type Sentences []Sentence
 // 内部APIから取得したデータから字幕情報を抽出する
 func extractCaptions(transcript ResTranscriptAPI) Captions {
 	var rawCaptions Captions
-	path := outputDirPath+"/rawCaptions.json"
+	path := outputDirPath + "/rawCaptions.json"
 	if checkFileExist(path) {
 		readBytes, err := ioutil.ReadFile(path)
 		if err != nil {
@@ -107,7 +107,7 @@ func extractCaptions(transcript ResTranscriptAPI) Captions {
 func formatCaptions(rawCaptions Captions, videoId string) Captions {
 	var formattedCaps Captions
 
-	path := outputDirPath+"/formattedCaptions.json"
+	path := outputDirPath + "/formattedCaptions.json"
 	if checkFileExist(path) {
 		readBytes, err := ioutil.ReadFile(path)
 		if err != nil {
@@ -339,13 +339,35 @@ func createSrt(jpSentences Sentences) {
 	}
 
 	for i, js := range jpSentences {
-		jpText := js.Sentence
-		from := js.From
-		to := js.To
-
-		srt += fmt.Sprintf("%v\n%v --> %v\n%v\n\n", i+1, strings.Replace(from, ".", ",", 1), strings.Replace(to, ".", ",", 1), jpText)
+		// 文章を「。」で分割し、必要に応じて再構築
+		sentences := strings.Split(js.Sentence, "。")
+		processedSentences := []string{}
+		for idx, sentence := range sentences {
+			trimmedSentence := strings.TrimSpace(sentence)
+			if trimmedSentence != "" {
+				if idx < len(sentences)-1 {
+					trimmedSentence += "。" // 最後以外の文末には句点を追加
+				}
+				// 文字数が55文字を超える場合には、さらに細かく分割
+				for _, part := range splitSentenceIfLong(trimmedSentence) {
+					processedSentences = append(processedSentences, part)
+				}
+			}
+		}
+		// 文章を改行で結合
+		jpText := strings.Join(processedSentences, "\n")
+		// 字幕のフォーマットを作成
+		from := strings.Replace(js.From, ".", ",", 1)
+		to := strings.Replace(js.To, ".", ",", 1)
+		srt += fmt.Sprintf("%v\n%v --> %v\n%v\n\n", i+1, from, to, jpText)
 	}
-	_ = ioutil.WriteFile(path, []byte(srt), 0644)
+
+	// ファイルへの書き込み
+	err := ioutil.WriteFile(path, []byte(srt), 0644)
+	if err != nil {
+		fmt.Println("Error writing file:", err)
+		return
+	}
 }
 
 func repunc() string {
